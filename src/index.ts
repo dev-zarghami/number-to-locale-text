@@ -20,35 +20,20 @@ let defaultLocale: Locale | null = null;
 
 /**
  * Set the default locale.
- * @param localeKey - The locale to set as the default.
  */
 export const setDefaultLocale = async (localeKey: Locales): Promise<void> => {
     defaultLocale = await loadLocale(localeKey);
 };
 
 /**
- * A utility function to lazily load locale files.
- * @param locale - The locale to load.
- * @returns Promise<Locale>
+ * Dynamically import locale JSON file.
  */
 const loadLocale = async (locale: Locales): Promise<Locale> => {
-    switch (locale) {
-        case Locales.FA:
-            return await import("./locales/fa.json");
-        case Locales.EN:
-            return await import("./locales/en.json");
-        case Locales.AR:
-            return await import("./locales/ar.json");
-        case Locales.FR:
-            return await import("./locales/fr.json");
-        case Locales.DE:
-            return await import("./locales/de.json");
-        case Locales.ES:
-            return await import("./locales/es.json");
-        case Locales.TR:
-            return await import("./locales/tr.json");
-        default:
-            throw new Error(`Locale ${locale} is not supported.`);
+    try {
+        const module = await import(`./locales/${locale}.json`);
+        return module.default ?? module;
+    } catch (e) {
+        throw new Error(`Locale ${locale} is not supported or missing file.`);
     }
 };
 
@@ -67,24 +52,19 @@ const prepareNumber = (num: number | string): string[] => {
 const tinyNumToWord = (num: string, locale: Locale): string => {
     const {letters, delimiter} = locale;
 
-    if (parseInt(num, 10) === 0) {
-        return "";
-    }
+    if (parseInt(num, 10) === 0) return "";
 
     const parsedInt = parseInt(num, 10);
 
-    if (parsedInt < 10) {
-        return letters[0][parsedInt];
-    }
-
-    if (parsedInt <= 20) {
-        return letters[1][parsedInt - 10];
-    }
+    if (parsedInt < 10) return letters[0][parsedInt];
+    if (parsedInt <= 20) return letters[1][parsedInt - 10];
 
     if (parsedInt < 100) {
         const one = parsedInt % 10;
         const ten = Math.floor(parsedInt / 10);
-        return one > 0 ? letters[2][ten] + delimiter + letters[0][one] : letters[2][ten];
+        return one > 0
+            ? letters[2][ten] + delimiter + letters[0][one]
+            : letters[2][ten];
     }
 
     const one = parsedInt % 10;
@@ -94,9 +74,7 @@ const tinyNumToWord = (num: string, locale: Locale): string => {
     const out = [letters[3][hundreds]];
     const secondPart = ten * 10 + one;
 
-    if (secondPart === 0) {
-        return out.join(delimiter);
-    }
+    if (secondPart === 0) return out.join(delimiter);
 
     if (secondPart < 10) {
         out.push(letters[0][secondPart]);
@@ -104,35 +82,28 @@ const tinyNumToWord = (num: string, locale: Locale): string => {
         out.push(letters[1][secondPart - 10]);
     } else {
         out.push(letters[2][ten]);
-        if (one > 0) {
-            out.push(letters[0][one]);
-        }
+        if (one > 0) out.push(letters[0][one]);
     }
 
     return out.join(delimiter);
 };
 
+/**
+ * Convert number to words using default locale
+ */
 export const numberToString = (input: number | string): string => {
-    // Use default locale if none is provided
-
     if (!defaultLocale) {
-        throw new Error("Locale is not set. Please set a default locale using setDefaultLocale.");
+        throw new Error("Locale is not set. Please call setDefaultLocale first.");
     }
 
-    const {zero, negative, delimiter, letters} = defaultLocale;
+    const {zero, negative, delimiter, letters, decimalSuffixes} = defaultLocale;
 
     input = input.toString().replace(/[^0-9.-]/g, "");
     let isNegative = false;
 
     const floatParse = parseFloat(input);
-
-    if (isNaN(floatParse)) {
-        return zero;
-    }
-
-    if (floatParse === 0) {
-        return zero;
-    }
+    if (isNaN(floatParse)) return zero;
+    if (floatParse === 0) return zero;
 
     if (floatParse < 0) {
         isNegative = true;
@@ -157,17 +128,23 @@ export const numberToString = (input: number | string): string => {
         }
     }
 
+    let result = (isNegative ? negative + delimiter : "") + out.join(delimiter);
+
     if (decimalPart) {
         decimalPart = decimalPart.replace(/0*$/, "");
         if (decimalPart.length > 0) {
-            return (
-                (isNegative ? negative : "") +
-                out.join(delimiter) +
-                " . " +
-                decimalPart
-            );
+            const decimalAsNumber = parseInt(decimalPart, 10);
+            const decimalWord = tinyNumToWord(decimalPart, defaultLocale);
+
+            const suffix = decimalSuffixes[decimalPart.length - 1];
+
+            if (suffix && decimalWord) {
+                result += delimiter + decimalWord + " " + suffix;
+            } else {
+                result += " . " + decimalPart;
+            }
         }
     }
 
-    return (isNegative ? negative : "") + out.join(delimiter);
+    return result;
 };
