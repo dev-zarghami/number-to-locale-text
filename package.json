@@ -1,16 +1,60 @@
 {
   "name": "number-to-locale-text",
-  "version": "1.0.1",
-  "main": "dist/index.js",
-  "scripts": {
-    "build": "rimraf dist && tsc",
-    "prepare": "npm run build"
-  },
-  "author": "dev.zarghami@gmail.com",
+  "version": "2.0.0",
+  "description": "Convert numbers to their written words in multiple locales (en, fa, ar, fr, de, es, tr). Zero-dependency, tree-shakeable, ESM + CJS, fully typed.",
+  "keywords": [
+    "number-to-words",
+    "number-to-text",
+    "spell-number",
+    "localization",
+    "i18n",
+    "persian",
+    "farsi",
+    "arabic",
+    "typescript",
+    "esm"
+  ],
   "license": "MIT",
-  "description": "number, localization, typescript",
+  "author": "dev.zarghami@gmail.com",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dev-zarghami/number-to-locale-text.git"
+  },
+  "bugs": {
+    "url": "https://github.com/dev-zarghami/number-to-locale-text/issues"
+  },
+  "homepage": "https://github.com/dev-zarghami/number-to-locale-text#readme",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "scripts": {
+    "build": "tsup",
+    "clean": "rm -rf dist",
+    "typecheck": "tsc --noEmit",
+    "prepare": "npm run build",
+    "prepublishOnly": "npm run clean && npm run build"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "devDependencies": {
-    "rimraf": "^6.0.1",
+    "@types/node": "^22.0.0",
+    "tsup": "^8.5.0",
     "typescript": "^5.7.3"
   }
 }

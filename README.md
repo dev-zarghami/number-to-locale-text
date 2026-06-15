@@ -1,223 +1,268 @@
-# Number to String Conversion
+# number-to-locale-text
 
-This repository provides a utility for converting numbers into their written form in multiple languages.  
-It supports various locales and allows the user to define a default locale for the conversion.
+> Convert numbers into their **written words** across multiple locales — zero dependencies, fully typed, tree-shakeable, and shipped as both ESM and CommonJS.
+
+```ts
+numberToWords(1205, 'en');        // "one thousand two hundred five"
+numberToWords(1205, 'fa');        // "یک هزار و دویست و پنج"
+numberToWords(25.34, 'en');       // "twenty-five point three four"
+```
+
+---
 
 ## Features
-- Convert numbers to words in multiple languages.
-- Supports localization for several languages (English, Arabic, French, German, Spanish, Turkish, Persian).
-- Handles decimal and negative numbers.
-- Customizable locale definitions for fine-grained control over formatting.
+
+- 🔢 **Numbers → words** for integers, decimals, and negatives.
+- 🌍 **7 built-in locales** — English, Persian, Arabic, French, German, Spanish, Turkish.
+- 🧩 **Custom locales** — bring your own vocabulary with a typed, validated schema.
+- 🟢 **Synchronous & side-effect-free** — no global state, no `await`, safe under concurrency.
+- 🔠 **Two decimal styles** — digit-by-digit (`"point three four"`) or fractional (`"thirty-four hundredths"`).
+- 🛡️ **Robust by default** — strict input validation, precise large-number handling via strings, no silent wrong answers.
+- 📦 **Dual ESM + CJS**, first-class TypeScript types, **zero runtime dependencies**.
 
 ---
 
 ## Installation
 
-You can install the package via npm:
-
 ```bash
 npm install number-to-locale-text
-```
-
-or using yarn:
-
-```bash
+# or
+pnpm add number-to-locale-text
+# or
 yarn add number-to-locale-text
 ```
 
-Alternatively, include it directly in your project.
+Requires **Node ≥ 18**. Works in any modern bundler (Vite, webpack, Rollup, esbuild) and in the browser.
 
 ---
 
-## Usage
+## Quick start
 
-### Setting the Default Locale
-Before converting numbers, you need to set the default locale:
+```ts
+import { numberToWords } from 'number-to-locale-text';
 
-```typescript
-import { setDefaultLocale, Locales } from 'number-to-locale-text';
-
-// Set default locale to English
-await setDefaultLocale(Locales.EN);
+numberToWords(42, 'en');   // "forty-two"
+numberToWords(-42, 'en');  // "minus forty-two"
+numberToWords(1000000, 'en'); // "one million"
 ```
 
+No setup, no `await`, no global state — just call it.
+
 ---
 
-### Converting Numbers to Words
-Once a locale is set, you can use `numberToString`:
+## API
 
-```typescript
-import { numberToString } from 'number-to-locale-text';
+### `numberToWords(value, locale, options?)`
 
-const result = numberToString(1234.56);
-console.log(result); 
-// Output depends on the default locale
+The primary, stateless converter.
+
+| Param     | Type                          | Description |
+|-----------|-------------------------------|-------------|
+| `value`   | `number \| string`            | The number to convert. **Pass a string** for very large integers or exact decimals (see [Precision](#precision--large-numbers)). |
+| `locale`  | `LocaleCode \| Locale`        | A built-in code (`'en'`, `'fa'`, …) or a [custom locale object](#custom-locales). |
+| `options` | `ConvertOptions` _(optional)_ | See [Options](#options). |
+
+Returns the number in words as a `string`.
+
+```ts
+import { numberToWords } from 'number-to-locale-text';
+
+numberToWords(138, 'en');                         // "one hundred thirty-eight"
+numberToWords(25.34, 'en');                       // "twenty-five point three four"
+numberToWords(25.34, 'en', { decimals: 'fraction' }); // "twenty-five and thirty-four hundredths"
 ```
 
----
+### `createConverter(locale, defaults?)`
 
-## Available Locales
-The available locales are defined in the `Locales` enum:
+Returns a reusable converter bound to a locale (and optional default options). Ideal when you convert many values for the same locale.
 
-```typescript
-export enum Locales {
-    FA = "fa", // Persian
-    EN = "en", // English
-    AR = "ar", // Arabic
-    FR = "fr", // French
-    DE = "de", // German
-    ES = "es", // Spanish
-    TR = "tr", // Turkish
+```ts
+import { createConverter } from 'number-to-locale-text';
+
+const fa = createConverter('fa');
+fa.convert(25);    // "بیست و پنج"
+fa.convert(1205);  // "یک هزار و دویست و پنج"
+
+// Bind default options too:
+const money = createConverter('en', { decimals: 'fraction' });
+money.convert(25.34);                  // "twenty-five and thirty-four hundredths"
+money.convert(25.34, { decimals: 'digits' }); // per-call override → "twenty-five point three four"
+
+money.locale; // the resolved Locale object
+```
+
+### Options
+
+```ts
+interface ConvertOptions {
+  /** How the fractional part is read. Default: 'digits'. */
+  decimals?: 'digits' | 'fraction';
 }
 ```
 
-To use a specific locale, set it with `setDefaultLocale`.
+| `decimals`   | `25.34` →                                  |
+|--------------|--------------------------------------------|
+| `'digits'`   | `twenty-five point three four`             |
+| `'fraction'` | `twenty-five and thirty-four hundredths`   |
 
 ---
 
-## Examples by Locale
+## Locales
 
-Below are example outputs for the same numbers (`25`, `138`, `1205`, `25.34`, `-42`) in different locales:
+| Code | Language | Quality |
+|------|----------|---------|
+| `en` | English  | ✅ Fully idiomatic |
+| `fa` | Persian  | ✅ Fully idiomatic |
+| `tr` | Turkish  | ✅ Idiomatic (except `1000` reads as `bir bin`) |
+| `ar` | Arabic   | ⚠️ Approximate — no gender/dual agreement |
+| `fr` | French   | ⚠️ Approximate — no vigesimal 70/80/90 rules |
+| `de` | German   | ⚠️ Approximate — not compounded (`zwanzig fünf`, not `fünfundzwanzig`) |
+| `es` | Spanish  | ⚠️ Approximate — no `veinti-` contractions |
 
-### 🇮🇷 Persian (fa)
-```typescript
-await setDefaultLocale(Locales.FA);
+> The built-in engine is **positional**: it composes ones/tens/hundreds/scales with per-locale connectors. This is fully correct for English and Persian and intelligible everywhere, but it does **not** model language-specific morphology (German compounding, French vigesimal counting, Spanish/Arabic agreement). Contributions implementing per-language rules are very welcome.
 
-console.log(numberToString(25));     // بیست و پنج
-console.log(numberToString(138));    // یکصد و سی و هشت
-console.log(numberToString(1205));   // یک هزار و دویست و پنج
-console.log(numberToString(25.34));  // بیست و پنج و سی و چهار صدم
-console.log(numberToString(-42));    // منفی چهل و دو
+Codes are also available as a typed constant (back-compatible with the v1 enum):
+
+```ts
+import { Locales, locales } from 'number-to-locale-text';
+
+Locales.EN; // 'en'
+locales.en; // the English Locale object
 ```
 
-### 🇬🇧 English (en)
-```typescript
-await setDefaultLocale(Locales.EN);
+### Examples by locale
 
-console.log(numberToString(25));     // twenty five
-console.log(numberToString(138));    // one hundred and thirty eight
-console.log(numberToString(1205));   // one thousand two hundred and five
-console.log(numberToString(25.34));  // twenty five point thirty four
-console.log(numberToString(-42));    // minus forty two
-```
-
-### 🇸🇦 Arabic (ar)
-```typescript
-await setDefaultLocale(Locales.AR);
-
-console.log(numberToString(25));     // خمسة و عشرون
-console.log(numberToString(138));    // مائة و ثمانية و ثلاثون
-console.log(numberToString(1205));   // ألف و مائتان و خمسة
-console.log(numberToString(25.34));  // خمسة و عشرون و أربعة و ثلاثون مئة
-console.log(numberToString(-42));    // سالب اثنان و أربعون
-```
-
-### 🇫🇷 French (fr)
-```typescript
-await setDefaultLocale(Locales.FR);
-
-console.log(numberToString(25));     // vingt-cinq
-console.log(numberToString(138));    // cent trente-huit
-console.log(numberToString(1205));   // mille deux cent cinq
-console.log(numberToString(25.34));  // vingt-cinq virgule trente-quatre
-console.log(numberToString(-42));    // moins quarante-deux
-```
-
-### 🇩🇪 German (de)
-```typescript
-await setDefaultLocale(Locales.DE);
-
-console.log(numberToString(25));     // fünfundzwanzig
-console.log(numberToString(138));    // einhundertachtunddreißig
-console.log(numberToString(1205));   // eintausendzweihundertfünf
-console.log(numberToString(25.34));  // fünfundzwanzig Komma vierunddreißig
-console.log(numberToString(-42));    // minus zweiundvierzig
-```
-
-### 🇪🇸 Spanish (es)
-```typescript
-await setDefaultLocale(Locales.ES);
-
-console.log(numberToString(25));     // veinticinco
-console.log(numberToString(138));    // ciento treinta y ocho
-console.log(numberToString(1205));   // mil doscientos cinco
-console.log(numberToString(25.34));  // veinticinco coma treinta y cuatro
-console.log(numberToString(-42));    // menos cuarenta y dos
-```
-
-### 🇹🇷 Turkish (tr)
-```typescript
-await setDefaultLocale(Locales.TR);
-
-console.log(numberToString(25));     // yirmi beş
-console.log(numberToString(138));    // yüz otuz sekiz
-console.log(numberToString(1205));   // bin iki yüz beş
-console.log(numberToString(25.34));  // yirmi beş virgül otuz dört
-console.log(numberToString(-42));    // eksi kırk iki
+```ts
+numberToWords(25, 'en');   // "twenty-five"
+numberToWords(25, 'fa');   // "بیست و پنج"
+numberToWords(25, 'tr');   // "yirmi beş"
+numberToWords(25, 'ar');   // "عشرون و خمسة"   (approximate)
+numberToWords(25, 'fr');   // "vingt-cinq"
+numberToWords(25, 'de');   // "zwanzig fünf"   (approximate)
+numberToWords(25, 'es');   // "veinte y cinco" (approximate)
 ```
 
 ---
 
-## Custom Locale Files
-Locales are loaded dynamically from JSON files inside the `locales/` folder.  
-You can modify existing ones or create new locales.
+## Custom locales
 
-Each JSON must follow the `Locale` interface:
+Pass a `Locale` object anywhere a code is accepted. Use `defineLocale` for type-checking and autocompletion:
 
-```json
-{
-  "delimiter": " ",
-  "zero": "zero",
-  "negative": "minus",
-  "letters": [
-    ["", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine"],
-    ["ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen"],
-    ["", "ten", "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"],
-    ["", "hundred", "two hundred", "three hundred", "four hundred", "five hundred", "six hundred", "seven hundred", "eight hundred", "nine hundred"],
-    ["", "thousand", "million", "billion"]
-  ],
-  "decimalSuffixes": ["tenth", "hundredth", "thousandth"]
+```ts
+import { defineLocale, numberToWords } from 'number-to-locale-text';
+
+const pirate = defineLocale({
+  zero: 'naught',
+  negative: 'minus',
+  ones: ['', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine'],
+  teens: ['ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen'],
+  tens: ['', '', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety'],
+  hundreds: ['', 'one hundred', 'two hundred', 'three hundred', 'four hundred', 'five hundred', 'six hundred', 'seven hundred', 'eight hundred', 'nine hundred'],
+  scales: ['', 'thousand', 'million', 'billion'],
+  decimalSuffixes: ['tenth', 'hundredth', 'thousandth'],
+  connectors: {
+    tensAndOnes: '-',
+    hundredAndRest: ' ',
+    scale: ' ',
+    group: ' ',
+    negative: ' ',
+    decimalPoint: 'point',
+    fraction: ' and ',
+  },
+});
+
+numberToWords(1234, pirate); // "one thousand two hundred thirty-four"
+```
+
+### The `Locale` schema
+
+```ts
+interface Locale {
+  zero: string;                       // "zero"
+  negative: string;                   // "minus" (no trailing space)
+  ones: string[];                     // index 0 = ""; 1..9 = one..nine
+  teens: string[];                    // 0..9 = ten..nineteen
+  tens: string[];                     // index 0,1 = ""; 2..9 = twenty..ninety
+  hundreds: string[];                 // index 0 = ""; 1..9 = one hundred..nine hundred
+  scales: string[];                   // index 0 = ""; then thousand, million, …
+  decimalSuffixes: string[];          // for 'fraction' mode: tenths, hundredths, …
+  decimalSuffixesPlural?: string[];   // optional plurals (used when numerator ≠ 1)
+  connectors: LocaleConnectors;
+}
+
+interface LocaleConnectors {
+  tensAndOnes: string;     // tens ↔ ones      — EN "-"   FA " و "
+  hundredAndRest: string;  // hundreds ↔ rest  — EN " "   BrE " and "
+  scale: string;           // group ↔ scale    — EN " "   ("one thousand")
+  group: string;           // chunk ↔ chunk    — EN " "   FA " و "
+  negative: string;        // negative ↔ body  — usually " "
+  decimalPoint: string;    // spoken "point"   — EN "point"  FR "virgule"
+  fraction: string;        // integer ↔ fraction in 'fraction' mode — EN " and "
 }
 ```
 
----
-
-## Handling Negative Numbers and Decimals
-- **Negative numbers**: Adds the locale’s `negative` string.
-- **Decimals**: Appends fractional part using `decimalSuffixes` if defined, otherwise falls back to `"." + digits`.
+Each extra entry in `scales` extends the supported magnitude by three orders of ten.
 
 ---
 
-## Error Handling
-- If `numberToString` is called before setting a default locale:
-```text
-Error: Locale is not set. Please set a default locale using setDefaultLocale.
+## Precision & large numbers
+
+JavaScript's `number` type loses integer precision above 2⁵³ and represents big values in exponential notation. To convert beyond that range exactly, **pass a string**:
+
+```ts
+numberToWords('1000000000000000', 'en');
+// "one quadrillion"
+
+numberToWords(1e21, 'en');
+// ❌ RangeError: exponential notation — pass it as a string instead
 ```
 
-- If you set an unsupported locale:
-```text
-Error: Locale <locale> is not supported.
+Built-in locales support magnitudes up to their largest `scales` entry (English reaches **quintillion**, i.e. up to 10²¹ − 1). Beyond that a `RangeError` is thrown — extend the locale's `scales` array to go further.
+
+---
+
+## Error handling
+
+The library **fails loudly** instead of returning a wrong answer:
+
+```ts
+numberToWords('abc', 'en');     // TypeError: Invalid numeric input: "abc".
+numberToWords(Infinity, 'en');  // RangeError: Cannot convert a non-finite number.
+numberToWords(5, 'xx');         // RangeError: Unknown locale "xx".
 ```
 
 ---
 
-## Locale Configuration
-```typescript
-export interface Locale {
-  delimiter: string;
-  zero: string;
-  negative: string;
-  letters: string[][];
-  decimalSuffixes: string[];
-}
+## Legacy API (deprecated)
+
+The original stateful API still works for backwards compatibility, but is **deprecated** — it relies on shared mutable state, which is unsafe under concurrency. Prefer `numberToWords` / `createConverter`.
+
+```ts
+import { setDefaultLocale, numberToString } from 'number-to-locale-text';
+
+setDefaultLocale('en');     // now synchronous (awaiting it is harmless)
+numberToString(1205);       // "one thousand two hundred five"
 ```
+
+> **Migrating from v1:** `setDefaultLocale` is now synchronous (drop the `await`), and output strings are corrected — v1 produced malformed results such as `"twenty and five"` and crashed on 4+ digit decimals and very large integers. Replace `setDefaultLocale(x)` + `numberToString(n)` with `numberToWords(n, x)`.
 
 ---
 
 ## Contributing
-Feel free to fork and contribute by adding new locales or improving conversions.
+
+Contributions are welcome — especially:
+
+- **Per-language morphology** for the locales currently marked _approximate_ (de, fr, es, ar).
+- **New locales** (add a file under `src/locales/`, register it in `src/locales/index.ts`).
+
+```bash
+npm install
+npm run build       # tsup → dist (ESM + CJS + .d.ts)
+npm run typecheck   # tsc --noEmit
+```
 
 ---
 
 ## License
-This project is licensed under the **MIT License**. See the LICENSE file for details.
+
+[MIT](./LICENSE) © dev.zarghami
